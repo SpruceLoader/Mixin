@@ -30,7 +30,10 @@ import java.util.List;
 import org.spongepowered.asm.service.ILegacyClassTransformer;
 import org.spongepowered.asm.service.MixinService;
 
-import net.minecraft.launchwrapper.IClassTransformer;
+import xyz.spruceloader.launchwrapper.LaunchClassLoader;
+import xyz.spruceloader.launchwrapper.api.ArgumentMap;
+import xyz.spruceloader.launchwrapper.api.EnvSide;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformer;
 
 /**
  * Proxy transformer for the mixin transformer. These transformers are used
@@ -39,7 +42,7 @@ import net.minecraft.launchwrapper.IClassTransformer;
  * the mixin transformer itself. Only the latest proxy to be instantiated
  * will actually provide callbacks to the underlying mixin transformer.
  */
-public final class Proxy implements IClassTransformer, ILegacyClassTransformer {
+public final class Proxy implements LaunchTransformer, ILegacyClassTransformer {
     
     /**
      * All existing proxies
@@ -65,11 +68,17 @@ public final class Proxy implements IClassTransformer, ILegacyClassTransformer {
         Proxy.proxies.add(this);
         MixinService.getService().getLogger("mixin").debug("Adding new mixin transformer proxy #{}", Proxy.proxies.size());
     }
-    
+
+    public void takeArguments(ArgumentMap argMap, EnvSide env) {
+    }
+
+    public void injectIntoClassLoader(LaunchClassLoader classLoader) {
+    }
+
     @Override
-    public byte[] transform(String name, String transformedName, byte[] basicClass) {
+    public byte[] transform(String name, byte[] basicClass) {
         if (this.isActive) {
-            return Proxy.transformer.transformClassBytes(name, transformedName, basicClass);
+            return Proxy.transformer.transformClassBytes(name, basicClass);
         }
         
         return basicClass;
@@ -86,9 +95,9 @@ public final class Proxy implements IClassTransformer, ILegacyClassTransformer {
     }
 
     @Override
-    public byte[] transformClassBytes(String name, String transformedName, byte[] basicClass) {
+    public byte[] transformClassBytes(String name, byte[] basicClass) {
         if (this.isActive) {
-            return Proxy.transformer.transformClassBytes(name, transformedName, basicClass);
+            return Proxy.transformer.transformClassBytes(name, basicClass);
         }
         
         return basicClass;

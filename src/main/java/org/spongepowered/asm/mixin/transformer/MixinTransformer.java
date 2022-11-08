@@ -188,18 +188,14 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
      *      #transformClassBytes(java.lang.String, java.lang.String, byte[])
      */
     @Override
-    public byte[] transformClassBytes(String name, String transformedName, byte[] basicClass) {
-        if (transformedName == null) {
-            return basicClass;
-        }
-        
+    public byte[] transformClassBytes(String name, byte[] basicClass) {
         MixinEnvironment environment = MixinEnvironment.getCurrentEnvironment();
 
         if (basicClass == null) {
-            return this.generateClass(environment, transformedName);
+            return this.generateClass(environment, name);
         }
         
-        return this.transformClass(environment, transformedName, basicClass);
+        return this.transformClass(environment, name, basicClass);
     }
 
     /**

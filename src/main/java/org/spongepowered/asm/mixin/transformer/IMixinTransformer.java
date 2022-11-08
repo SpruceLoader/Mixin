@@ -80,7 +80,7 @@ public interface IMixinTransformer {
      * 
      * @see ILegacyClassTransformer#transformClassBytes(String, String, byte[])
      */
-    public abstract byte[] transformClassBytes(String name, String transformedName, byte[] basicClass);
+    public abstract byte[] transformClassBytes(String name, byte[] basicClass);
     
     /**
      * Apply mixins and postprocessors to the supplied class

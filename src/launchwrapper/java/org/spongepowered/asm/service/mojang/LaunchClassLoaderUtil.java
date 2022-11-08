@@ -30,8 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.spongepowered.asm.service.IClassTracker;
-
-import net.minecraft.launchwrapper.LaunchClassLoader;
+import xyz.spruceloader.launchwrapper.LaunchClassLoader;
 
 /**
  * Utility class for reflecting into {@link LaunchClassLoader}. We <b>do not
@@ -96,10 +95,11 @@ final class LaunchClassLoaderUtil implements IClassTracker {
     @Override
     public String getClassRestrictions(String className) {
         String restrictions = "";
-        if (this.isClassClassLoaderExcluded(className, null)) {
+        if (this.isClassClassLoaderExcluded(className)) {
             restrictions = "PACKAGE_CLASSLOADER_EXCLUSION";
         }
-        if (this.isClassTransformerExcluded(className, null)) {
+
+        if (this.isClassTransformerExcluded(className)) {
             restrictions = (restrictions.length() > 0 ? restrictions + "," : "") + "PACKAGE_TRANSFORMER_EXCLUSION";
         }
         return restrictions;
@@ -110,11 +110,10 @@ final class LaunchClassLoaderUtil implements IClassTracker {
      * exclusion lists
      * 
      * @param name class name
-     * @param transformedName transformed class name
      * @return true if either exclusion list contains either of the names
      */
-    boolean isClassExcluded(String name, String transformedName) {
-        return this.isClassClassLoaderExcluded(name, transformedName) || this.isClassTransformerExcluded(name, transformedName);
+    boolean isClassExcluded(String name) {
+        return this.isClassClassLoaderExcluded(name) || this.isClassTransformerExcluded(name);
     }
 
     /**
@@ -122,13 +121,12 @@ final class LaunchClassLoaderUtil implements IClassTracker {
      * classloader exclusion list
      * 
      * @param name class name
-     * @param transformedName transformed class name
      * @return true if the classloader exclusion list contains either of the
      *      names
      */
-    boolean isClassClassLoaderExcluded(String name, String transformedName) {
+    boolean isClassClassLoaderExcluded(String name) {
         for (final String exception : this.getClassLoaderExceptions()) {
-            if ((transformedName != null && transformedName.startsWith(exception)) || name.startsWith(exception)) {
+            if (name.startsWith(exception)) {
                 return true;
             }
         }
@@ -141,13 +139,12 @@ final class LaunchClassLoaderUtil implements IClassTracker {
      * transformer exclusion list
      * 
      * @param name class name
-     * @param transformedName transformed class name
      * @return true if the transformer exclusion list contains either of the
      *      names
      */
-    boolean isClassTransformerExcluded(String name, String transformedName) {
+    boolean isClassTransformerExcluded(String name) {
         for (final String exception : this.getTransformerExceptions()) {
-            if ((transformedName != null && transformedName.startsWith(exception)) || name.startsWith(exception)) {
+            if (name.startsWith(exception)) {
                 return true;
             }
         }

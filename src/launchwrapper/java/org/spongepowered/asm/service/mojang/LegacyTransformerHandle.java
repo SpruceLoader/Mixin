@@ -30,20 +30,18 @@ import org.spongepowered.asm.service.IClassProvider;
 import org.spongepowered.asm.service.ILegacyClassTransformer;
 import org.spongepowered.asm.service.MixinService;
 
-import net.minecraft.launchwrapper.IClassTransformer;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformer;
 
 /**
- * A handle for a legacy {@link IClassTransformer} for processing as a legacy
- * transformer
+ * A handle for a legacy {@link LaunchTransformer} for processing.
  */
 class LegacyTransformerHandle implements ILegacyClassTransformer {
-    
     /**
      * Wrapped transformer
      */
-    private final IClassTransformer transformer;
+    private final LaunchTransformer transformer;
     
-    LegacyTransformerHandle(IClassTransformer transformer) {
+    LegacyTransformerHandle(LaunchTransformer transformer) {
         this.transformer = transformer;
     }
     
@@ -76,8 +74,8 @@ class LegacyTransformerHandle implements ILegacyClassTransformer {
      *      #transformClassBytes(java.lang.String, java.lang.String, byte[])
      */
     @Override
-    public byte[] transformClassBytes(String name, String transformedName, byte[] basicClass) {
-        return this.transformer.transform(name, transformedName, basicClass);
+    public byte[] transformClassBytes(String name, byte[] basicClass) {
+        return this.transformer.transform(name, basicClass);
     }
     
 }

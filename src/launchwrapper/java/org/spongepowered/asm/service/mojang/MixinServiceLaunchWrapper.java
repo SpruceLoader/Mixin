@@ -26,16 +26,15 @@ package org.spongepowered.asm.service.mojang;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.lang.reflect.InvocationTargetException;
+import java.net.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -70,16 +69,14 @@ import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Closeables;
-
-import net.minecraft.launchwrapper.IClassNameTransformer;
-import net.minecraft.launchwrapper.IClassTransformer;
-import net.minecraft.launchwrapper.Launch;
+import xyz.spruceloader.launchwrapper.Launch;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformer;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformers;
 
 /**
  * Mixin service for launchwrapper
  */
 public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements IClassProvider, IClassBytecodeProvider, ITransformerProvider {
-
     // Blackboard keys
     public static final Keys BLACKBOARD_KEY_TWEAKCLASSES = Keys.of("TweakClasses");
     public static final Keys BLACKBOARD_KEY_TWEAKS = Keys.of("Tweaks");
@@ -118,14 +115,9 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      * subsequently removed.
      */
     private List<ILegacyClassTransformer> delegatedTransformers;
-
-    /**
-     * Class name transformer (if present)
-     */
-    private IClassNameTransformer nameTransformer;
     
     public MixinServiceLaunchWrapper() {
-        this.classLoaderUtil = new LaunchClassLoaderUtil(Launch.classLoader);
+        this.classLoaderUtil = new LaunchClassLoaderUtil(Launch.getInstance().getClassLoader());
     }
     
     @Override
@@ -140,7 +132,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
     public boolean isValid() {
         try {
             // Detect launchwrapper
-            Launch.classLoader.hashCode();
+            Launch.getInstance().getClassLoader().hashCode();
         } catch (Throwable ex) {
             return false;
         }
@@ -153,7 +145,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
     @Override
     public void prepare() {
         // Only needed in dev, in production this would be handled by the tweaker
-        Launch.classLoader.addClassLoaderExclusion(MixinServiceAbstract.LAUNCH_PACKAGE);
+        Launch.getInstance().getClassLoader().addClassLoaderException(MixinServiceAbstract.LAUNCH_PACKAGE);
     }
     
     /* (non-Javadoc)
@@ -162,11 +154,11 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
     @Override
     public Phase getInitialPhase() {
         String command = System.getProperty("sun.java.command");
-        if (command != null && command.contains("GradleStart")) {
+        if (command != null && command.contains("devlaunchinjector")) {
             System.setProperty("mixin.env.remapRefMap", "true");
         }
 
-        if (MixinServiceLaunchWrapper.findInStackTrace("net.minecraft.launchwrapper.Launch", "launch") > 132) {
+        if (MixinServiceLaunchWrapper.findInStackTrace("xyz.spruceloader.launchwrapper.Launch", "launch") > 132) {
             return Phase.DEFAULT;
         }
         return Phase.PREINIT;
@@ -178,7 +170,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public CompatibilityLevel getMaxCompatibilityLevel() {
-        return CompatibilityLevel.JAVA_8;
+        return CompatibilityLevel.JAVA_18;
     }
     
     @Override
@@ -191,7 +183,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public void init() {
-        if (MixinServiceLaunchWrapper.findInStackTrace("net.minecraft.launchwrapper.Launch", "launch") < 4) {
+        if (MixinServiceLaunchWrapper.findInStackTrace("xyz.spruceloader.launchwrapper.Launch", "launch") < 4) {
             MixinServiceLaunchWrapper.logger.error("MixinBootstrap.doInit() called during a tweak constructor!");
         }
 
@@ -208,10 +200,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public Collection<String> getPlatformAgents() {
-        return ImmutableList.<String>of(
-            "org.spongepowered.asm.launch.platform.MixinPlatformAgentFMLLegacy",
-            "org.spongepowered.asm.launch.platform.MixinPlatformAgentLiteLoaderLegacy"
-        );
+        return new ArrayList<>();
     }
     
     @Override
@@ -230,7 +219,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
     
     @Override
     public Collection<IContainerHandle> getMixinContainers() {
-        Builder<IContainerHandle> list = ImmutableList.<IContainerHandle>builder();
+        Builder<IContainerHandle> list = ImmutableList.builder();
         this.getContainersFromClassPath(list);
         this.getContainersFromAgents(list);
         return list.build();
@@ -305,7 +294,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
-        return Launch.classLoader.findClass(name);
+        return Launch.getInstance().getClassLoader().loadClass(name);
     }
 
     /* (non-Javadoc)
@@ -314,7 +303,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public Class<?> findClass(String name, boolean initialize) throws ClassNotFoundException {
-        return Class.forName(name, initialize, Launch.classLoader);
+        return Class.forName(name, initialize, Launch.getInstance().getClassLoader());
     }
     
     /* (non-Javadoc)
@@ -331,8 +320,13 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public void beginPhase() {
-        Launch.classLoader.registerTransformer(MixinServiceLaunchWrapper.TRANSFORMER_PROXY_CLASS);
-        this.delegatedTransformers = null;
+        try {
+            LaunchTransformers.addTransformer((LaunchTransformer) Class.forName(MixinServiceLaunchWrapper.TRANSFORMER_PROXY_CLASS).getDeclaredConstructor().newInstance());
+            this.delegatedTransformers = null;
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException |
+                 ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
     
     /* (non-Javadoc)
@@ -352,7 +346,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public InputStream getResourceAsStream(String name) {
-        return Launch.classLoader.getResourceAsStream(name);
+        return Launch.getInstance().getClassLoader().getResourceAsStream(name);
     }
     
     /* (non-Javadoc)
@@ -361,7 +355,13 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
     @Override
     @Deprecated
     public URL[] getClassPath() {
-        return Launch.classLoader.getSources().toArray(new URL[0]);
+        return Launch.getInstance().getClassPath().stream().map(path -> {
+            try {
+                return path.toUri().toURL();
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList().toArray(new URL[0]);
     }
     
     /* (non-Javadoc)
@@ -369,21 +369,10 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public Collection<ITransformer> getTransformers() {
-        List<IClassTransformer> transformers = Launch.classLoader.getTransformers();
-        List<ITransformer> wrapped = new ArrayList<ITransformer>(transformers.size());
-        for (IClassTransformer transformer : transformers) {
-            if (transformer instanceof ITransformer) {
-                wrapped.add((ITransformer)transformer);
-            } else {
-                wrapped.add(new LegacyTransformerHandle(transformer));
-            }
-            
-            if (transformer instanceof IClassNameTransformer) {
-                MixinServiceLaunchWrapper.logger.debug("Found name transformer: {}", transformer.getClass().getName());
-                this.nameTransformer = (IClassNameTransformer)transformer;
-            }
-
-        }
+        List<LaunchTransformer> transformers = LaunchTransformers.getTransformers();
+        List<ITransformer> wrapped = new ArrayList<>(transformers.size());
+        for (LaunchTransformer transformer : transformers)
+            wrapped.add(new LegacyTransformerHandle(transformer));
         return wrapped;
     }
 
@@ -395,7 +384,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      */
     @Override
     public List<ITransformer> getDelegatedTransformers() {
-        return Collections.<ITransformer>unmodifiableList(this.getDelegatedLegacyTransformers());
+        return Collections.unmodifiableList(this.getDelegatedLegacyTransformers());
     }
     
     private List<ILegacyClassTransformer> getDelegatedLegacyTransformers() {
@@ -458,17 +447,15 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      * class
      * 
      * @param name class name
-     * @param transformedName transformed class name
      * @return class bytes or null if not found
      * @throws IOException propagated
      * @deprecated Use {@link #getClassNode} instead
      */
     @Deprecated
-    public byte[] getClassBytes(String name, String transformedName) throws IOException {
-        byte[] classBytes = Launch.classLoader.getClassBytes(name);
-        if (classBytes != null) {
+    public byte[] getClassBytes(String name) throws ClassNotFoundException {
+        byte[] classBytes = Launch.getInstance().getClassLoader().loadClassData(name);
+        if (classBytes != null)
             return classBytes;
-        }
 
         URLClassLoader appClassLoader;
         if (Launch.class.getClassLoader() instanceof URLClassLoader) {
@@ -479,7 +466,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
 
         InputStream classStream = null;
         try {
-            final String resourcePath = transformedName.replace('.', '/').concat(".class");
+            final String resourcePath = name.replace('.', '/').concat(".class");
             classStream = appClassLoader.getResourceAsStream(resourcePath);
             return ByteStreams.toByteArray(classStream);
         } catch (Exception ex) {
@@ -497,26 +484,22 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
      *      delegate transformer chain
      * @return Transformed class bytecode for the specified class
      * @throws ClassNotFoundException if the specified class could not be loaded
-     * @throws IOException if an error occurs whilst reading the specified class
      */
     @Deprecated
-    public byte[] getClassBytes(String className, boolean runTransformers) throws ClassNotFoundException, IOException {
-        String transformedName = className.replace('/', '.');
-        String name = this.unmapClassName(transformedName);
-        
+    public byte[] getClassBytes(String className, boolean runTransformers) throws ClassNotFoundException {
         Profiler profiler = Profiler.getProfiler("mixin");
         Section loadTime = profiler.begin(Profiler.ROOT, "class.load");
-        byte[] classBytes = this.getClassBytes(name, transformedName);
+        byte[] classBytes = this.getClassBytes(className);
         loadTime.end();
 
         if (runTransformers) {
             Section transformTime = profiler.begin(Profiler.ROOT, "class.transform");
-            classBytes = this.applyTransformers(name, transformedName, classBytes, profiler);
+            classBytes = this.applyTransformers(className, classBytes, profiler);
             transformTime.end();
         }
 
         if (classBytes == null) {
-            throw new ClassNotFoundException(String.format("The specified class '%s' was not found", transformedName));
+            throw new ClassNotFoundException(String.format("The specified class '%s' was not found", className));
         }
 
         return classBytes;
@@ -524,16 +507,15 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
 
     /**
      * Since we obtain the class bytes with getClassBytes(), we need to apply
-     * the transformers ourself
+     * the transformers ourselves
      * 
      * @param name class name
-     * @param transformedName transformed class name
      * @param basicClass input class bytes
      * @return class bytecode after processing by all registered transformers
      *      except the excluded transformers
      */
-    private byte[] applyTransformers(String name, String transformedName, byte[] basicClass, Profiler profiler) {
-        if (this.classLoaderUtil.isClassExcluded(name, transformedName)) {
+    private byte[] applyTransformers(String name, byte[] basicClass, Profiler profiler) {
+        if (this.classLoaderUtil.isClassExcluded(name)) {
             return basicClass;
         }
 
@@ -545,7 +527,7 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
             String simpleName = transformer.getName().substring(pos + 1);
             Section transformTime = profiler.begin(Profiler.FINE, simpleName.toLowerCase(Locale.ROOT));
             transformTime.setInfo(transformer.getName());
-            basicClass = transformer.transformClassBytes(name, transformedName, basicClass);
+            basicClass = transformer.transformClassBytes(name, basicClass);
             transformTime.end();
             
             if (this.lock.isSet()) {
@@ -559,28 +541,6 @@ public class MixinServiceLaunchWrapper extends MixinServiceAbstract implements I
         }
 
         return basicClass;
-    }
-
-    private String unmapClassName(String className) {
-        if (this.nameTransformer == null) {
-            this.findNameTransformer();
-        }
-        
-        if (this.nameTransformer != null) {
-            return this.nameTransformer.unmapClassName(className);
-        }
-        
-        return className;
-    }
-
-    private void findNameTransformer() {
-        List<IClassTransformer> transformers = Launch.classLoader.getTransformers();
-        for (IClassTransformer transformer : transformers) {
-            if (transformer instanceof IClassNameTransformer) {
-                MixinServiceLaunchWrapper.logger.debug("Found name transformer: {}", transformer.getClass().getName());
-                this.nameTransformer = (IClassNameTransformer) transformer;
-            }
-        }
     }
 
     /* (non-Javadoc)

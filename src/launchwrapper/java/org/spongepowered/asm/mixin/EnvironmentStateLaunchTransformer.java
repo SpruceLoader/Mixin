@@ -22,35 +22,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.spongepowered.asm.service.modlauncher;
+package org.spongepowered.asm.mixin;
 
-import org.spongepowered.asm.service.IMixinServiceBootstrap;
-import org.spongepowered.asm.service.ServiceInitialisationException;
+import org.spongepowered.asm.launch.MixinBootstrap;
+import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
 
-import cpw.mods.modlauncher.Launcher;
+import xyz.spruceloader.launchwrapper.LaunchClassLoader;
+import xyz.spruceloader.launchwrapper.api.ArgumentMap;
+import xyz.spruceloader.launchwrapper.api.EnvSide;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformer;
 
 /**
- * Ain't nobody here 'cept us chickens...
+ * Tweaker used to notify the environment when we transition from preinit to
+ * default
  */
-public class MixinServiceModLauncherBootstrap implements IMixinServiceBootstrap {
-
-    @Override
-    public String getName() {
-        return "ModLauncher";
+public class EnvironmentStateLaunchTransformer implements LaunchTransformer {
+    public void takeArguments(ArgumentMap argMap, EnvSide env) {
+        MixinEnvironment.gotoPhase(Phase.DEFAULT);
     }
 
-    @Override
-    public String getServiceClassName() {
-        return "org.spongepowered.asm.service.modlauncher.MixinServiceModLauncher";
+    public void injectIntoClassLoader(LaunchClassLoader classLoader) {
+        MixinBootstrap.getPlatform().inject();
     }
-
-    @Override
-    public void bootstrap() {
-        try {
-            Launcher.INSTANCE.hashCode();
-        } catch (Throwable th) {
-            throw new ServiceInitialisationException(this.getName() + " is not available");
-        }
-    }
-
+    
 }

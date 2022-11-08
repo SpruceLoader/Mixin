@@ -24,60 +24,40 @@
  */
 package org.spongepowered.asm.launch;
 
-import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.spongepowered.asm.launch.platform.CommandLineOptions;
-
-import net.minecraft.launchwrapper.ITweaker;
-import net.minecraft.launchwrapper.LaunchClassLoader;
+import xyz.spruceloader.launchwrapper.LaunchClassLoader;
+import xyz.spruceloader.launchwrapper.api.ArgumentMap;
+import xyz.spruceloader.launchwrapper.api.EnvSide;
+import xyz.spruceloader.launchwrapper.api.LaunchTransformer;
 
 /**
  * TweakClass for running mixins in production. Being a tweaker ensures that we
  * get injected into the AppClassLoader but does mean that we will need to
  * inject the FML coremod by hand if running under FML.
  */
-public class MixinTweaker implements ITweaker {
-    
+public class MixinLaunchTransformer implements LaunchTransformer {
     /**
      * Hello world
      */
-    public MixinTweaker() {
+    public MixinLaunchTransformer() {
         MixinBootstrap.start();
     }
-    
-    /* (non-Javadoc)
-     * @see net.minecraft.launchwrapper.ITweaker#acceptOptions(java.util.List,
-     *      java.io.File, java.io.File, java.lang.String)
-     */
-    @Override
-    public final void acceptOptions(List<String> args, File gameDir, File assetsDir, String profile) {
+
+    public void takeArguments(ArgumentMap argMap, EnvSide env) {
+        List<String> args = new ArrayList<>();
+        Collections.addAll(args, argMap.toArray());
         MixinBootstrap.doInit(CommandLineOptions.ofArgs(args));
     }
 
-    /* (non-Javadoc)
-     * @see net.minecraft.launchwrapper.ITweaker#injectIntoClassLoader(
-     *      net.minecraft.launchwrapper.LaunchClassLoader)
-     */
-    @Override
-    public final void injectIntoClassLoader(LaunchClassLoader classLoader) {
+    public void injectIntoClassLoader(LaunchClassLoader classLoader) {
         MixinBootstrap.inject();
     }
 
-    /* (non-Javadoc)
-     * @see net.minecraft.launchwrapper.ITweaker#getLaunchTarget()
-     */
-    @Override
-    public String getLaunchTarget() {
-        return MixinBootstrap.getPlatform().getLaunchTarget();
+    public byte[] transform(String className, byte[] rawClass) {
+        return rawClass;
     }
-
-    /* (non-Javadoc)
-     * @see net.minecraft.launchwrapper.ITweaker#getLaunchArguments()
-     */
-    @Override
-    public String[] getLaunchArguments() {
-        return new String[]{};
-    }
-    
 }
