@@ -244,6 +244,14 @@ eclipse {
     autoBuildTasks compileLaunchwrapperJava
 }
 
+// Make task to build and publish the jar to releases and snapshots
+task performPublish {
+    group = "publishing"
+    dependsOn("checkVersion")
+    dependsOn("build")
+    dependsOn("publish")
+}
+
 // Filter, process, and include resources
 processResources {
     // Include in final JAR
@@ -416,25 +424,40 @@ ext.excludePomDeps = [
 ]
 
 publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId project.group
+            artifactId project.archivesBaseName
+            version project.version
+
+            artifact sourceJar
+            artifact javadocJar
+            artifact(proguardFile) {
+                builtBy stagingProguardJar
+                classifier = null
+            }
+        }
+    }
+
     repositories {
-        if (project.hasProperty("unifycraft.publishing.username") && project.hasProperty("unifycraft.publishing.password")) {
+        if (project.hasProperty("spruceloader.publishing.username") && project.hasProperty("spruceloader.publishing.password")) {
             maven {
-                name = "UnifyCraftRelease"
-                url = uri("https://maven.unifycraft.xyz/releases")
+                name = "SpruceLoaderReleases"
+                url = uri("https://maven.spruceloader.xyz/releases")
                 authentication.create("basic", BasicAuthentication)
                 credentials {
-                    username = property("unifycraft.publishing.username").toString()
-                    password = property("unifycraft.publishing.password").toString()
+                    username = property("spruceloader.publishing.username").toString()
+                    password = property("spruceloader.publishing.password").toString()
                 }
             }
 
             maven {
-                name = "UnifyCraftSnapshots"
-                url = uri("https://maven.unifycraft.xyz/snapshots")
+                name = "SpruceLoaderSnapshots"
+                url = uri("https://maven.spruceloader.xyz/snapshots")
                 authentication.create("basic", BasicAuthentication)
                 credentials {
-                    username = property("unifycraft.publishing.username").toString()
-                    password = property("unifycraft.publishing.password").toString()
+                    username = property("spruceloader.publishing.username").toString()
+                    password = property("spruceloader.publishing.password").toString()
                 }
             }
         }

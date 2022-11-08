@@ -77,7 +77,7 @@ public class MixinAgent implements IHotSwap {
             
             try {
                 MixinAgent.logger.info("Redefining class {}", className);
-                return MixinAgent.this.classTransformer.transformClassBytes(null, className, classfileBuffer);
+                return MixinAgent.this.classTransformer.transformClassBytes(className, classfileBuffer);
             } catch (Throwable th) {
                 MixinAgent.logger.error("Error while re-transforming class {}", className, th);
                 return MixinAgent.ERROR_BYTECODE;
@@ -117,7 +117,7 @@ public class MixinAgent implements IHotSwap {
                         MixinAgent.logger.error("Target class {} bytecode is not registered", targetName);
                         return false;
                     }
-                    targetBytecode = MixinAgent.this.classTransformer.transformClassBytes(null, targetName, targetBytecode);
+                    targetBytecode = MixinAgent.this.classTransformer.transformClassBytes(targetName, targetBytecode);
                     MixinAgent.instrumentation.redefineClasses(new ClassDefinition(targetClass, targetBytecode));
                 } catch (Throwable th) {
                     MixinAgent.logger.error("Error while re-transforming target class {}", target, th);
